@@ -77,7 +77,7 @@ func ExampleContext_LoadModule_array() {
 		// you'd want to actually handle the error here
 		// return fmt.Errorf("loading guest modules: %v", err)
 	}
-	for _, mod := range mods.([]interface{}) {
+	for _, mod := range mods.([]any) {
 		myStruct.guestModules = append(myStruct.guestModules, mod.(io.Writer))
 	}
 
@@ -110,7 +110,7 @@ func ExampleContext_LoadModule_map() {
 		// you'd want to actually handle the error here
 		// return fmt.Errorf("loading guest modules: %v", err)
 	}
-	for modName, mod := range mods.(map[string]interface{}) {
+	for modName, mod := range mods.(map[string]any) {
 		myStruct.guestModules[modName] = mod.(io.Writer)
 	}
 

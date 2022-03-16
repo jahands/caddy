@@ -37,7 +37,7 @@ import (
 // not actually need to do this).
 type Context struct {
 	context.Context
-	moduleInstances map[string][]interface{}
+	moduleInstances map[string][]any
 	cfg             *Config
 	cleanupFuncs    []func()
 }
@@ -51,7 +51,7 @@ type Context struct {
 // modules which are loaded will be properly unloaded.
 // See standard library context package's documentation.
 func NewContext(ctx Context) (Context, context.CancelFunc) {
-	newCtx := Context{moduleInstances: make(map[string][]interface{}), cfg: ctx.cfg}
+	newCtx := Context{moduleInstances: make(map[string][]any), cfg: ctx.cfg}
 	c, cancel := context.WithCancel(ctx.Context)
 	wrappedCancel := func() {
 		cancel()
@@ -128,7 +128,7 @@ func (ctx *Context) OnCancel(f func()) {
 // Loaded modules have already been provisioned and validated. Upon returning
 // successfully, this method clears the json.RawMessage(s) in the field since
 // the raw JSON is no longer needed, and this allows the GC to free up memory.
-func (ctx Context) LoadModule(structPointer interface{}, fieldName string) (interface{}, error) {
+func (ctx Context) LoadModule(structPointer any, fieldName string) (any, error) {
 	val := reflect.ValueOf(structPointer).Elem().FieldByName(fieldName)
 	typ := val.Type()
 
@@ -148,7 +148,7 @@ func (ctx Context) LoadModule(structPointer interface{}, fieldName string) (inte
 	}
 	inlineModuleKey := opts["inline_key"]
 
-	var result interface{}
+	var result any
 
 	switch val.Kind() {
 	case reflect.Slice:
@@ -170,7 +170,7 @@ func (ctx Context) LoadModule(structPointer interface{}, fieldName string) (inte
 			if inlineModuleKey == "" {
 				panic("unable to determine module name without inline_key because type is not a ModuleMap")
 			}
-			var all []interface{}
+			var all []any
 			for i := 0; i < val.Len(); i++ {
 				val, err := ctx.loadModuleInline(inlineModuleKey, moduleNamespace, val.Index(i).Interface().(json.RawMessage))
 				if err != nil {
@@ -186,10 +186,10 @@ func (ctx Context) LoadModule(structPointer interface{}, fieldName string) (inte
 			if inlineModuleKey == "" {
 				panic("unable to determine module name without inline_key because type is not a ModuleMap")
 			}
-			var all [][]interface{}
+			var all [][]any
 			for i := 0; i < val.Len(); i++ {
 				innerVal := val.Index(i)
-				var allInner []interface{}
+				var allInner []any
 				for j := 0; j < innerVal.Len(); j++ {
 					innerInnerVal, err := ctx.loadModuleInline(inlineModuleKey, moduleNamespace, innerVal.Index(j).Interface().(json.RawMessage))
 					if err != nil {
@@ -204,7 +204,7 @@ func (ctx Context) LoadModule(structPointer interface{}, fieldName string) (inte
 		} else if isModuleMapType(typ.Elem()) {
 			// val is `[]map[string]json.RawMessage`
 
-			var all []map[string]interface{}
+			var all []map[string]any
 			for i := 0; i < val.Len(); i++ {
 				thisSet, err := ctx.loadModulesFromSomeMap(moduleNamespace, inlineModuleKey, val.Index(i))
 				if err != nil {
@@ -235,7 +235,7 @@ func (ctx Context) LoadModule(structPointer interface{}, fieldName string) (inte
 // loadModulesFromSomeMap loads modules from val, which must be a type of map[string]interface{}.
 // Depending on inlineModuleKey, it will be interpreted as either a ModuleMap (key is the module
 // name) or as a regular map (key is not the module name, and module name is defined inline).
-func (ctx Context) loadModulesFromSomeMap(namespace, inlineModuleKey string, val reflect.Value) (map[string]interface{}, error) {
+func (ctx Context) loadModulesFromSomeMap(namespace, inlineModuleKey string, val reflect.Value) (map[string]any, error) {
 	// if no inline_key is specified, then val must be a ModuleMap,
 	// where the key is the module name
 	if inlineModuleKey == "" {
@@ -253,8 +253,8 @@ func (ctx Context) loadModulesFromSomeMap(namespace, inlineModuleKey string, val
 // loadModulesFromRegularMap loads modules from val, where val is a map[string]json.RawMessage.
 // Map keys are NOT interpreted as module names, so module names are still expected to appear
 // inline with the objects.
-func (ctx Context) loadModulesFromRegularMap(namespace, inlineModuleKey string, val reflect.Value) (map[string]interface{}, error) {
-	mods := make(map[string]interface{})
+func (ctx Context) loadModulesFromRegularMap(namespace, inlineModuleKey string, val reflect.Value) (map[string]any, error) {
+	mods := make(map[string]any)
 	iter := val.MapRange()
 	for iter.Next() {
 		k := iter.Key()
@@ -270,8 +270,8 @@ func (ctx Context) loadModulesFromRegularMap(namespace, inlineModuleKey string, 
 
 // loadModuleMap loads modules from a ModuleMap, i.e. map[string]interface{}, where the key is the
 // module name. With a module map, module names do not need to be defined inline with their values.
-func (ctx Context) loadModuleMap(namespace string, val reflect.Value) (map[string]interface{}, error) {
-	all := make(map[string]interface{})
+func (ctx Context) loadModuleMap(namespace string, val reflect.Value) (map[string]any, error) {
+	all := make(map[string]any)
 	iter := val.MapRange()
 	for iter.Next() {
 		k := iter.Key().Interface().(string)
@@ -299,7 +299,7 @@ func (ctx Context) loadModuleMap(namespace string, val reflect.Value) (map[strin
 // directly by most modules. However, this method is useful when
 // dynamically loading/unloading modules in their own context,
 // like from embedded scripts, etc.
-func (ctx Context) LoadModuleByID(id string, rawMsg json.RawMessage) (interface{}, error) {
+func (ctx Context) LoadModuleByID(id string, rawMsg json.RawMessage) (any, error) {
 	modulesMu.RLock()
 	mod, ok := modules[id]
 	modulesMu.RUnlock()
@@ -311,7 +311,7 @@ func (ctx Context) LoadModuleByID(id string, rawMsg json.RawMessage) (interface{
 		return nil, fmt.Errorf("module '%s' has no constructor", mod.ID)
 	}
 
-	val := mod.New().(interface{})
+	val := mod.New().(any)
 
 	// value must be a pointer for unmarshaling into concrete type, even if
 	// the module's concrete type is a slice or map; New() *should* return
@@ -385,7 +385,7 @@ func (ctx Context) LoadModuleByID(id string, rawMsg json.RawMessage) (interface{
 // multiple instances in the map or it appears in an array (where there are
 // no custom keys). In other words, the key containing the module name is
 // treated special/separate from all the other keys in the object.
-func (ctx Context) loadModuleInline(moduleNameKey, moduleScope string, raw json.RawMessage) (interface{}, error) {
+func (ctx Context) loadModuleInline(moduleNameKey, moduleScope string, raw json.RawMessage) (any, error) {
 	moduleName, raw, err := getModuleNameInline(moduleNameKey, raw)
 	if err != nil {
 		return nil, err
@@ -407,7 +407,7 @@ func (ctx Context) loadModuleInline(moduleNameKey, moduleScope string, raw json.
 // called during the Provision/Validate phase to reference a
 // module's own host app (since the parent app module is still
 // in the process of being provisioned, it is not yet ready).
-func (ctx Context) App(name string) (interface{}, error) {
+func (ctx Context) App(name string) (any, error) {
 	if app, ok := ctx.cfg.apps[name]; ok {
 		return app, nil
 	}

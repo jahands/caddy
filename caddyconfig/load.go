@@ -164,7 +164,7 @@ func adaptByContentType(contentType string, body []byte) ([]byte, []Warning, err
 }
 
 var bufPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return new(bytes.Buffer)
 	},
 }
